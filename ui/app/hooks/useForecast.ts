@@ -11,6 +11,8 @@ export type ForecastResult = {
   forecastLower: number[];
   timeframe: { start: string; end: string };
   interval: number;
+  historicalTimeframe: { start: string; end: string };
+  historicalInterval: number;
   status: "idle" | "loading" | "success" | "error";
   error: string | null;
 };
@@ -35,6 +37,8 @@ export function useForecast(hostId: string | null, metricId: string, timeframe?:
     forecastLower: [],
     timeframe: { start: "", end: "" },
     interval: 0,
+    historicalTimeframe: { start: "", end: "" },
+    historicalInterval: 0,
     status: "idle",
     error: null,
   });
@@ -113,6 +117,13 @@ export function useForecast(hostId: string | null, metricId: string, timeframe?:
           )
         : undefined;
 
+      const parseInterval = (raw: unknown) =>
+        typeof raw === "string"
+          ? parseInt(raw, 10) / 1_000_000
+          : typeof raw === "number"
+            ? raw / 1_000_000
+            : 3_600_000; // fallback: 1 hour in ms
+
       if (!mountedRef.current) return;
       setResult({
         historical: metricField ? (historicalRecord[metricField] as number[]) : [],
@@ -120,11 +131,9 @@ export function useForecast(hostId: string | null, metricId: string, timeframe?:
         forecastUpper: (predictionRecord["dt.davis.forecast:upper"] as number[]) ?? [],
         forecastLower: (predictionRecord["dt.davis.forecast:lower"] as number[]) ?? [],
         timeframe: predictionRecord.timeframe as { start: string; end: string },
-        interval: typeof predictionRecord.interval === "string"
-          ? parseInt(predictionRecord.interval, 10) / 1_000_000
-          : typeof predictionRecord.interval === "number"
-            ? predictionRecord.interval / 1_000_000
-            : 3_600_000, // fallback: 1 hour in ms
+        interval: parseInterval(predictionRecord.interval),
+        historicalTimeframe: (historicalRecord?.timeframe as { start: string; end: string }) ?? predictionRecord.timeframe,
+        historicalInterval: parseInterval(historicalRecord?.interval ?? predictionRecord.interval),
         status: "success",
         error: null,
       });

@@ -48,15 +48,15 @@ capacity-planner/
 │   └── app/
 │       ├── App.tsx
 │       ├── pages/
-│       │   ├── CapacityPlanner.tsx    # Main page (host picker + forecasts + recommendations)
-│       │   ├── Home.tsx               # Welcome page
-│       │   └── Data.tsx               # DQL explorer
+│       │   ├── FleetOverview.tsx      # Main page (host table + detail sheet with forecasts)
+│       │   ├── TopologyExplorer.tsx    # Smartscape topology graph
+│       │   ├── ScenarioBuilder.tsx     # What-if scenario configuration
+│       │   └── SimulationResults.tsx   # Simulation results view
 │       ├── components/
-│       │   ├── HostSelector.tsx       # Entity picker dropdown
 │       │   ├── ForecastChart.tsx      # Timeseries + forecast overlay
-│       │   ├── Recommendation.tsx     # Action cards (increase/decrease/stable/monitor)
+│       │   ├── HostDetailSheet.tsx    # Host detail sheet (forecasts + analysis + topology)
 │       │   ├── Header.tsx             # Nav header
-│       │   └── Card.tsx               # Card component
+│       │   └── FilterBar.tsx          # Filter bar component
 │       └── hooks/
 │           └── useForecast.ts         # Davis forecast hook
 ```

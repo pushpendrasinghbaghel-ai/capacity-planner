@@ -7,7 +7,6 @@ import { FleetOverview } from "./pages/FleetOverview";
 import { TopologyExplorer } from "./pages/TopologyExplorer";
 import { ScenarioBuilder } from "./pages/ScenarioBuilder";
 import { SimulationResults } from "./pages/SimulationResults";
-import { CapacityPlanner } from "./pages/CapacityPlanner";
 import { FilterProvider } from "./context/FilterContext";
 
 export const App = () => {
@@ -24,7 +23,6 @@ export const App = () => {
             <Route path="/topology" element={<TopologyExplorer />} />
             <Route path="/scenario" element={<ScenarioBuilder />} />
             <Route path="/results" element={<SimulationResults />} />
-            <Route path="/forecast" element={<CapacityPlanner />} />
           </Routes>
         </ErrorBoundary>
       </Page.Main>
