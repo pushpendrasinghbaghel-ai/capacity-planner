@@ -61,8 +61,8 @@ export function useHostNeighbors(hostId: string | null): UseHostNeighborsResult 
         `smartscapeEdges "calls", "runs_on", "belongs_to", "contains", "balanced_by", "is_part_of", "uses"
 | filter toString(source_id) == "${safeId}"
 | fieldsAdd tgt = toString(target_id)
-| lookup [smartscapeNodes | fieldsAdd nid = toString(id) | fields nid, name, entity_type], sourceField:tgt, lookupField:nid
-| fields tgt, type, lookup.name, lookup.entity_type`
+| lookup [smartscapeNodes "*" | fieldsAdd nid = toString(id) | fields nid, name, type], sourceField:tgt, lookupField:nid
+| fields tgt, type, lookup.name, lookup.type`
       );
 
       // Incoming edges to this host (things that call/depend on it)
@@ -70,8 +70,8 @@ export function useHostNeighbors(hostId: string | null): UseHostNeighborsResult 
         `smartscapeEdges "calls", "runs_on", "belongs_to", "contains", "balanced_by", "is_part_of", "uses"
 | filter toString(target_id) == "${safeId}"
 | fieldsAdd src = toString(source_id)
-| lookup [smartscapeNodes | fieldsAdd nid = toString(id) | fields nid, name, entity_type], sourceField:src, lookupField:nid
-| fields src, type, lookup.name, lookup.entity_type`
+| lookup [smartscapeNodes "*" | fieldsAdd nid = toString(id) | fields nid, name, type], sourceField:src, lookupField:nid
+| fields src, type, lookup.name, lookup.type`
       );
 
       if (generation !== generationRef.current) return;
@@ -87,7 +87,7 @@ export function useHostNeighbors(hostId: string | null): UseHostNeighborsResult 
         result.push({
           id,
           name: (r["lookup.name"] as string) ?? id,
-          type: (r["lookup.entity_type"] as string) ?? "UNKNOWN",
+          type: (r["lookup.type"] as string) ?? "UNKNOWN",
           direction: edgeType === "runs_on" ? "runs_on" : "downstream",
           edgeType,
         });
@@ -99,7 +99,7 @@ export function useHostNeighbors(hostId: string | null): UseHostNeighborsResult 
         result.push({
           id,
           name: (r["lookup.name"] as string) ?? id,
-          type: (r["lookup.entity_type"] as string) ?? "UNKNOWN",
+          type: (r["lookup.type"] as string) ?? "UNKNOWN",
           direction: "upstream",
           edgeType: (r.type as string) ?? "unknown",
         });

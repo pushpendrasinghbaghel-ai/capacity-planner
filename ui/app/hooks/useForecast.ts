@@ -89,9 +89,12 @@ export function useForecast(hostId: string | null, metricId: string, timeframe?:
         return;
       }
 
-      // GenericForecastAnalyzer returns resultTimeseries with records
-      const record = (output as any).resultTimeseries?.records?.[0];
-      if (!record) {
+      // GenericForecastAnalyzer returns two structures:
+      // - analyzedTimeSeriesQuery.expression.records[0] = historical data
+      // - timeSeriesDataWithPredictions.records[0] = forecast data (lower/upper/point only)
+      const predictionRecord = (output as any).timeSeriesDataWithPredictions?.records?.[0];
+      const historicalRecord = (output as any).analyzedTimeSeriesQuery?.expression?.records?.[0];
+      if (!predictionRecord) {
         if (!mountedRef.current) return;
         setResult((prev) => ({
           ...prev,
@@ -101,23 +104,26 @@ export function useForecast(hostId: string | null, metricId: string, timeframe?:
         return;
       }
 
-      const metricField = Object.keys(record).find(
-        (k) =>
-          !k.startsWith("dt.davis.forecast") &&
-          !["timeframe", "interval", "dt.entity.host"].includes(k)
-      );
+      // Historical metric values are in a separate record under analyzedTimeSeriesQuery
+      const metricField = historicalRecord
+        ? Object.keys(historicalRecord).find(
+            (k) =>
+              !k.startsWith("dt.davis.forecast") &&
+              !["timeframe", "interval", "dt.entity.host", "dt.smartscape.host"].includes(k)
+          )
+        : undefined;
 
       if (!mountedRef.current) return;
       setResult({
-        historical: metricField ? (record[metricField] as number[]) : [],
-        forecastPoint: (record["dt.davis.forecast:point"] as number[]) ?? [],
-        forecastUpper: (record["dt.davis.forecast:upper"] as number[]) ?? [],
-        forecastLower: (record["dt.davis.forecast:lower"] as number[]) ?? [],
-        timeframe: record.timeframe as { start: string; end: string },
-        interval: typeof record.interval === "string"
-          ? parseInt(record.interval, 10) / 1_000_000
-          : typeof record.interval === "number"
-            ? record.interval / 1_000_000
+        historical: metricField ? (historicalRecord[metricField] as number[]) : [],
+        forecastPoint: (predictionRecord["dt.davis.forecast:point"] as number[]) ?? [],
+        forecastUpper: (predictionRecord["dt.davis.forecast:upper"] as number[]) ?? [],
+        forecastLower: (predictionRecord["dt.davis.forecast:lower"] as number[]) ?? [],
+        timeframe: predictionRecord.timeframe as { start: string; end: string },
+        interval: typeof predictionRecord.interval === "string"
+          ? parseInt(predictionRecord.interval, 10) / 1_000_000
+          : typeof predictionRecord.interval === "number"
+            ? predictionRecord.interval / 1_000_000
             : 3_600_000, // fallback: 1 hour in ms
         status: "success",
         error: null,

@@ -92,7 +92,7 @@ async function davisForecastMetric(
     const output = analyzerResult.output?.[0];
     if (!output) return null;
 
-    const record = (output as any).resultTimeseries?.records?.[0];
+    const record = (output as any).timeSeriesDataWithPredictions?.records?.[0];
     if (!record) return null;
 
     const forecastPoints = record["dt.davis.forecast:point"] as number[] | undefined;

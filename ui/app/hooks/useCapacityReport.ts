@@ -94,17 +94,20 @@ async function forecastMetric(
     const output = analyzerResult.output?.[0];
     if (!output) return null;
 
-    const record = (output as any).resultTimeseries?.records?.[0];
+    const record = (output as any).timeSeriesDataWithPredictions?.records?.[0];
     if (!record) return null;
 
-    // Find the historical metric field
-    const metricField = Object.keys(record).find(
-      (k) =>
-        !k.startsWith("dt.davis.forecast") &&
-        !["timeframe", "interval", "dt.entity.host"].includes(k)
-    );
+    // Historical data is in analyzedTimeSeriesQuery, not in prediction record
+    const historicalRecord = (output as any).analyzedTimeSeriesQuery?.expression?.records?.[0];
+    const metricField = historicalRecord
+      ? Object.keys(historicalRecord).find(
+          (k) =>
+            !k.startsWith("dt.davis.forecast") &&
+            !["timeframe", "interval", "dt.entity.host", "dt.smartscape.host"].includes(k)
+        )
+      : undefined;
 
-    const historical = metricField ? (record[metricField] as number[]) : [];
+    const historical = metricField ? (historicalRecord[metricField] as number[]) : [];
     const forecastPoints = (record["dt.davis.forecast:point"] as number[]) ?? [];
     const forecastUppers = (record["dt.davis.forecast:upper"] as number[]) ?? [];
     const forecastLowers = (record["dt.davis.forecast:lower"] as number[]) ?? [];
