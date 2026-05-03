@@ -7,6 +7,9 @@ import { FleetOverview } from "./pages/FleetOverview";
 import { TopologyExplorer } from "./pages/TopologyExplorer";
 import { ScenarioBuilder } from "./pages/ScenarioBuilder";
 import { SimulationResults } from "./pages/SimulationResults";
+import { CapacityPlans } from "./pages/CapacityPlans";
+import { ForecastAccuracy } from "./pages/ForecastAccuracy";
+import { ScenarioComparison } from "./pages/ScenarioComparison";
 import { FilterProvider } from "./context/FilterContext";
 
 export const App = () => {
@@ -20,9 +23,12 @@ export const App = () => {
         <ErrorBoundary>
           <Routes>
             <Route path="/" element={<FleetOverview />} />
+            <Route path="/plans" element={<CapacityPlans />} />
+            <Route path="/accuracy" element={<ForecastAccuracy />} />
             <Route path="/topology" element={<TopologyExplorer />} />
             <Route path="/scenario" element={<ScenarioBuilder />} />
             <Route path="/results" element={<SimulationResults />} />
+            <Route path="/compare" element={<ScenarioComparison />} />
           </Routes>
         </ErrorBoundary>
       </Page.Main>

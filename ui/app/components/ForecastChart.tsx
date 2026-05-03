@@ -110,6 +110,7 @@ export const ForecastChart = ({ forecast, metricLabel }: ForecastChartProps) => 
     <Flex flexDirection="column" style={{ height: 350 }}>
       <TimeseriesChart data={lineSeries} variant="line" gapPolicy="connect">
         {xRange && <TimeseriesChart.XAxis min={xRange.min} max={xRange.max} />}
+        <TimeseriesChart.YAxis min={0} max={100} label="%" />
         {bandData && <TimeseriesChart.Band data={bandData} />}
       </TimeseriesChart>
     </Flex>

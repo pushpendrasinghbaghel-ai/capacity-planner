@@ -1,5 +1,45 @@
 # AI Coding Agent Instructions
 
+## Product Vision — Capacity Planner v2
+
+### What This App IS (not a dashboard)
+This is a **capacity planning tool** — it produces **persistent artifacts** (capacity plans, forecast snapshots, cost projections) that stakeholders use for budget decisions. Every feature must answer: "What decision does this enable?"
+
+### Five Pillars (ALL must be real, no mocks, no stubs)
+1. **Forecast Accuracy Tracking** — Save predictions to Document Store. On revisit, compare predicted vs actual. Track Forecast Accuracy Rate KPI. Builds trust in the tool over time.
+2. **Capacity Plan Documents** — Generate structured plans (fleet summary, per-host forecasts, bottlenecks, recommendations, cost impact). Save to Document Store. Shareable. What a VP takes to a budget meeting.
+3. **Cost Estimation** — Tag hosts with monthly cost via App State. Show cost in fleet table. Project cost impact of scaling recommendations. Without cost, it's engineering; with cost, it's business planning.
+4. **Scenario Comparison** — Save simulation results to Document Store. Compare 2+ scenarios side by side. Delta: "Scenario B delays exhaustion by 147 days, costs $12K less."
+5. **Threshold Alerts** — Configure alert thresholds per host/metric via App State. Flag hosts breaching forecast thresholds in Fleet Overview. Proactive, not reactive.
+
+### Architecture Invariants
+- **Document Store** for all persistent artifacts (forecast snapshots, capacity plans, saved simulations)
+- **App State** for user configuration (cost tags, alert thresholds)
+- **Davis GenericForecastAnalyzer** for ALL predictions — no manual formulas
+- **Smartscape graph** as computational substrate — topology-aware cascade is the moat
+- **Strato Design System** for ALL UI — no custom HTML elements, no hardcoded colors
+- **Real DQL queries** against Grail — no mock data generators
+
+### Navigation Structure
+| Route | Page | Purpose |
+|-------|------|---------|
+| `/` | Fleet Overview | Host health dashboard + cost + alert flags |
+| `/plans` | Capacity Plans | Generate, list, view saved capacity plans |
+| `/accuracy` | Forecast Accuracy | Prediction vs actual tracking + KPIs |
+| `/topology` | Topology Explorer | Interactive Smartscape graph |
+| `/scenario` | Scenario Builder | Define what-if simulations |
+| `/results` | Simulation Results | Cascade analysis + bottlenecks |
+| `/compare` | Scenario Comparison | Side-by-side simulation comparison |
+
+### Data Model (Document Store)
+- `capacity-forecast-snapshot` — Saved predictions (hostId, metric, predicted, timestamp, horizon)
+- `capacity-plan` — Generated capacity plans (fleet summary, forecasts, recommendations, costs)
+- `capacity-simulation` — Saved simulation results for comparison
+
+### Data Model (App State)
+- `cost-model:{hostId}` — Monthly cost in USD for a host
+- `alert-config:{hostId}` — Threshold config per host/metric
+
 ## DQL - Dynatrace Query Language
 
 Before writing any DQL query, the agent must always use the knowledge base (`dql_search` tool) to search for relevant DQL documentation, syntax, and examples, whenever the tool is available.

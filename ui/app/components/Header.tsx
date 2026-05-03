@@ -9,6 +9,12 @@ export const Header = () => {
         <AppHeader.NavigationItem as={NavLink} to="/">
           Fleet Overview
         </AppHeader.NavigationItem>
+        <AppHeader.NavigationItem as={NavLink} to="/plans">
+          Capacity Plans
+        </AppHeader.NavigationItem>
+        <AppHeader.NavigationItem as={NavLink} to="/accuracy">
+          Forecast Accuracy
+        </AppHeader.NavigationItem>
         <AppHeader.NavigationItem as={NavLink} to="/topology">
           Topology
         </AppHeader.NavigationItem>
@@ -17,6 +23,9 @@ export const Header = () => {
         </AppHeader.NavigationItem>
         <AppHeader.NavigationItem as={NavLink} to="/results">
           Simulation Results
+        </AppHeader.NavigationItem>
+        <AppHeader.NavigationItem as={NavLink} to="/compare">
+          Compare
         </AppHeader.NavigationItem>
       </AppHeader.Navigation>
       <AppHeader.Menus>

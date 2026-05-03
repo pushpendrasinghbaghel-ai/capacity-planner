@@ -244,6 +244,15 @@ const SPIKE_OPTIONS = [
   { value: 5, label: "5x spike" },
 ];
 
+const HORIZON_OPTIONS: Array<{ value: number; label: string; interval?: string }> = [
+  { value: 48, label: "48h" },
+  { value: 168, label: "7 days" },
+  { value: 90, label: "3 months", interval: "1d" },
+  { value: 180, label: "6 months", interval: "1d" },
+  { value: 270, label: "9 months", interval: "1d" },
+  { value: 365, label: "12 months", interval: "1d" },
+];
+
 // ---- Main Sheet Component ----
 export const HostDetailSheet: React.FC<HostDetailSheetProps> = ({
   host,
@@ -253,12 +262,14 @@ export const HostDetailSheet: React.FC<HostDetailSheetProps> = ({
 }) => {
   const hostId = host?.id ?? null;
 
-  const cpuForecast = useForecast(show ? hostId : null, "cpu", timeframe);
-  const memForecast = useForecast(show ? hostId : null, "memory", timeframe);
-  const diskForecast = useForecast(show ? hostId : null, "disk", timeframe);
-  const { neighbors, status: neighborsStatus, error: neighborsError } = useHostNeighbors(show ? hostId : null);
-
   const [spikeMultiplier, setSpikeMultiplier] = React.useState(1);
+  const [forecastHorizon, setForecastHorizon] = React.useState(168);
+  const [queryInterval, setQueryInterval] = React.useState<string | undefined>(undefined);
+
+  const cpuForecast = useForecast(show ? hostId : null, "cpu", timeframe, forecastHorizon, queryInterval);
+  const memForecast = useForecast(show ? hostId : null, "memory", timeframe, forecastHorizon, queryInterval);
+  const diskForecast = useForecast(show ? hostId : null, "disk", timeframe, forecastHorizon, queryInterval);
+  const { neighbors, status: neighborsStatus, error: neighborsError } = useHostNeighbors(show ? hostId : null);
 
   // Data readiness badge
   const dataStatus = useMemo(() => {
@@ -292,13 +303,27 @@ export const HostDetailSheet: React.FC<HostDetailSheetProps> = ({
         </Flex>
 
         {/* What-if spike selector */}
-        <Flex alignItems="center" gap={8}>
+        <Flex alignItems="center" gap={8} flexWrap="wrap">
           <Text textStyle="small-emphasized">What-if scenario:</Text>
           {SPIKE_OPTIONS.map((opt) => (
             <Button
               key={opt.value}
               variant={spikeMultiplier === opt.value ? "accent" : "default"}
               onClick={() => setSpikeMultiplier(opt.value)}
+            >
+              {opt.label}
+            </Button>
+          ))}
+        </Flex>
+
+        {/* Forecast horizon selector */}
+        <Flex alignItems="center" gap={8} flexWrap="wrap">
+          <Text textStyle="small-emphasized">Forecast horizon:</Text>
+          {HORIZON_OPTIONS.map((opt) => (
+            <Button
+              key={opt.value}
+              variant={forecastHorizon === opt.value ? "accent" : "default"}
+              onClick={() => { setForecastHorizon(opt.value); setQueryInterval(opt.interval); }}
             >
               {opt.label}
             </Button>

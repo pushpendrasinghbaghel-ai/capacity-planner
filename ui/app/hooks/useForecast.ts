@@ -29,7 +29,7 @@ export const METRICS: Record<string, MetricConfig> = {
   disk: { key: "dt.host.disk.used.percent", aggregation: "avg", label: "Disk Usage %" },
 };
 
-export function useForecast(hostId: string | null, metricId: string, timeframe?: Timeframe | null) {
+export function useForecast(hostId: string | null, metricId: string, timeframe?: Timeframe | null, forecastHorizon: number = 48, queryInterval?: string) {
   const [result, setResult] = useState<ForecastResult>({
     historical: [],
     forecastPoint: [],
@@ -61,9 +61,9 @@ export function useForecast(hostId: string | null, metricId: string, timeframe?:
         analyzerName: "dt.statistics.GenericForecastAnalyzer",
         body: {
           timeSeriesData: {
-            expression: `timeseries ${metric.aggregation}(${metric.key}), filter:{dt.smartscape.host == "${sanitizeEntityId(hostId)}"}`,
+            expression: `timeseries ${metric.aggregation}(${metric.key}), filter:{dt.smartscape.host == "${sanitizeEntityId(hostId)}"}${queryInterval ? `, interval: ${queryInterval}` : ""}`,
           },
-          forecastHorizon: 48,
+          forecastHorizon: Math.min(forecastHorizon, 400),
           forecastOffset: 1,
           generalParameters: {
             timeframe: getTimeframeForDavis(timeframe ?? null),
@@ -145,7 +145,7 @@ export function useForecast(hostId: string | null, metricId: string, timeframe?:
         error: err instanceof Error ? err.message : "Forecast request failed",
       }));
     }
-  }, [hostId, metricId, timeframe]);
+  }, [hostId, metricId, timeframe, forecastHorizon, queryInterval]);
 
   useEffect(() => {
     void runForecast();

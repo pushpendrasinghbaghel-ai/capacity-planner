@@ -321,3 +321,189 @@ export const CAPACITY_METRICS: MetricDefinition[] = [
     criticalThreshold: 15,
   },
 ];
+
+// ============================================================
+// Forecast Accuracy Tracking (Document Store)
+// ============================================================
+
+/** A saved forecast prediction snapshot */
+export interface ForecastSnapshot {
+  id: string;
+  hostId: string;
+  hostName: string;
+  metric: string;
+  metricLabel: string;
+  /** When the forecast was made */
+  createdAt: string;
+  /** The timeframe used for the forecast */
+  forecastHorizonDays: number;
+  /** When the forecast target date is (createdAt + horizonDays) */
+  targetDate: string;
+  /** Predicted value at target date (point estimate) */
+  predictedValue: number;
+  /** Upper bound at target date */
+  predictedUpper: number;
+  /** Lower bound at target date */
+  predictedLower: number;
+  /** Actual value at target date (filled in later when we revisit) */
+  actualValue: number | null;
+  /** Accuracy percentage (filled in when actualValue is set) */
+  accuracyPct: number | null;
+  /** Whether the actual was within the confidence band */
+  withinBand: boolean | null;
+}
+
+/** Document Store wrapper for forecast snapshots */
+export interface ForecastSnapshotDocument {
+  type: "capacity-forecast-snapshot";
+  version: 1;
+  snapshots: ForecastSnapshot[];
+}
+
+// ============================================================
+// Capacity Plan Documents (Document Store)
+// ============================================================
+
+/** A host's forecast within a capacity plan */
+export interface PlanHostForecast {
+  hostId: string;
+  hostName: string;
+  severity: BottleneckSeverity;
+  currentCpu: number;
+  currentMemory: number;
+  currentDisk: number;
+  forecastCpu: number;
+  forecastMemory: number;
+  forecastDisk: number;
+  headroomPct: number;
+  recommendation: string;
+  monthlyCostUsd: number | null;
+  scalingCostImpact: number | null;
+}
+
+/** A generated capacity plan */
+export interface CapacityPlan {
+  id: string;
+  name: string;
+  createdAt: string;
+  createdBy: string;
+  horizonDays: number;
+  /** Fleet summary */
+  summary: {
+    totalHosts: number;
+    criticalCount: number;
+    warningCount: number;
+    healthyCount: number;
+    overProvisionedCount: number;
+    totalMonthlyCost: number | null;
+    projectedMonthlyCost: number | null;
+    forecastAccuracyPct: number | null;
+  };
+  /** Per-host forecasts */
+  hostForecasts: PlanHostForecast[];
+  /** Top bottlenecks requiring action */
+  actionItems: Array<{
+    priority: number;
+    hostId: string;
+    hostName: string;
+    issue: string;
+    recommendation: string;
+    estimatedCostImpact: number | null;
+    daysToExhaustion: number | null;
+  }>;
+  /** Scenario results if any simulations were run */
+  scenarioSummaries: Array<{
+    scenarioName: string;
+    criticalNodes: number;
+    warningNodes: number;
+    estimatedAdditionalCost: number | null;
+  }>;
+}
+
+/** Document Store wrapper for capacity plan */
+export interface CapacityPlanDocument {
+  type: "capacity-plan";
+  version: 1;
+  plan: CapacityPlan;
+}
+
+// ============================================================
+// Saved Simulation for Comparison (Document Store)
+// ============================================================
+
+/** A saved simulation result for comparison */
+export interface SavedSimulation {
+  id: string;
+  savedAt: string;
+  scenarioName: string;
+  scenarioType: ScenarioType;
+  result: SimulationResult;
+  /** Cost summary at time of save */
+  costSummary: {
+    currentMonthlyCost: number | null;
+    projectedMonthlyCost: number | null;
+    costDelta: number | null;
+  };
+}
+
+/** Document Store wrapper for saved simulation */
+export interface SavedSimulationDocument {
+  type: "capacity-simulation";
+  version: 1;
+  simulation: SavedSimulation;
+}
+
+// ============================================================
+// Cost Model (App State)
+// ============================================================
+
+/** Cost configuration for a single host */
+export interface HostCostModel {
+  hostId: string;
+  hostName: string;
+  monthlyCostUsd: number;
+  costTier: "small" | "medium" | "large" | "xlarge" | "custom";
+  notes: string;
+  updatedAt: string;
+}
+
+/** All cost models stored in App State */
+export interface CostModelState {
+  hosts: Record<string, HostCostModel>;
+  defaultTierCosts: Record<string, number>;
+}
+
+// ============================================================
+// Alert Configuration (App State)
+// ============================================================
+
+/** Alert threshold for a single metric on a host */
+export interface AlertThreshold {
+  metric: string;
+  warningPct: number;
+  criticalPct: number;
+  forecastHorizonDays: number;
+  enabled: boolean;
+}
+
+/** Alert configuration for a single host */
+export interface HostAlertConfig {
+  hostId: string;
+  hostName: string;
+  thresholds: AlertThreshold[];
+  updatedAt: string;
+}
+
+/** Evaluated alert (runtime, not persisted) */
+export interface EvaluatedAlert {
+  hostId: string;
+  hostName: string;
+  metric: string;
+  metricLabel: string;
+  currentValue: number;
+  forecastedValue: number;
+  thresholdPct: number;
+  severity: "warning" | "critical";
+  daysToThreshold: number | null;
+  message: string;
+}
