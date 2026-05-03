@@ -1,0 +1,23 @@
+{
+  "$schema": "./.dt-app/app.config.schema.json",
+  "environmentUrl": "https://demo.apps.dynatrace.com/",
+  "app": {
+    "name": "Capacity Planner",
+    "version": "0.1.0",
+    "description": "Topology-aware what-if capacity simulation with Smartscape",
+    "id": "my.capacity.planner",
+    "scopes": [
+      { "name": "storage:metrics:read", "comment": "Read host, service, and cloud metrics" },
+      { "name": "storage:entities:read", "comment": "Read Smartscape entities and topology" },
+      { "name": "storage:smartscape:read", "comment": "Read Smartscape nodes and edges (Grail)" },
+      { "name": "storage:spans:read", "comment": "Read distributed traces for fan-out ratio computation" },
+      { "name": "davis:analyzers:execute", "comment": "Execute Davis forecast analyzers" },
+      { "name": "storage:logs:read", "comment": "Read log data" },
+      { "name": "storage:buckets:read", "comment": "Read storage buckets" },
+      { "name": "storage:filter-segments:read", "comment": "FilterBar segment persistence" },
+      { "name": "storage:filter-segments:write", "comment": "FilterBar segment persistence" },
+      { "name": "document:documents:read", "comment": "Read saved scenarios from Document Store" },
+      { "name": "document:documents:write", "comment": "Save scenarios to Document Store" }
+    ]
+  }
+}
