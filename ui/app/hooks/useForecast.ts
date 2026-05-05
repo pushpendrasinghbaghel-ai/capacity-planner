@@ -57,6 +57,18 @@ export function useForecast(hostId: string | null, metricId: string, timeframe?:
     setResult((prev) => ({ ...prev, status: "loading", error: null }));
 
     try {
+      // Davis needs sufficient historical data points to build a forecast model.
+      // When using daily intervals for longer horizons, widen the historical
+      // timeframe so Davis gets at least ~90 data points of history.
+      let davisTimeframe = getTimeframeForDavis(timeframe ?? null);
+      if (queryInterval) {
+        const intervalDays = queryInterval === "1d" ? 1 : queryInterval === "1h" ? 1 / 24 : 0;
+        if (intervalDays > 0) {
+          const minHistoryDays = Math.max(90, forecastHorizon * intervalDays);
+          davisTimeframe = { startTime: `now-${Math.ceil(minHistoryDays)}d` };
+        }
+      }
+
       const response = await analyzersClient.executeAnalyzer({
         analyzerName: "dt.statistics.GenericForecastAnalyzer",
         body: {
@@ -66,7 +78,7 @@ export function useForecast(hostId: string | null, metricId: string, timeframe?:
           forecastHorizon: Math.min(forecastHorizon, 400),
           forecastOffset: 1,
           generalParameters: {
-            timeframe: getTimeframeForDavis(timeframe ?? null),
+            timeframe: davisTimeframe,
           },
         },
       });

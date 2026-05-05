@@ -13,6 +13,10 @@ export interface NeighborNode {
   type: string;
   direction: "upstream" | "downstream" | "runs_on";
   edgeType: string;
+  /** Percentage of total calls in this direction (0-100), null if unavailable */
+  callPct: number | null;
+  /** Absolute call count, null if unavailable */
+  callCount: number | null;
 }
 
 interface UseHostNeighborsResult {
@@ -90,6 +94,8 @@ export function useHostNeighbors(hostId: string | null): UseHostNeighborsResult 
           type: (r["lookup.type"] as string) ?? "UNKNOWN",
           direction: edgeType === "runs_on" ? "runs_on" : "downstream",
           edgeType,
+          callPct: null,
+          callCount: null,
         });
       }
       for (const r of inEdges) {
@@ -102,7 +108,55 @@ export function useHostNeighbors(hostId: string | null): UseHostNeighborsResult 
           type: (r["lookup.type"] as string) ?? "UNKNOWN",
           direction: "upstream",
           edgeType: (r.type as string) ?? "unknown",
+          callPct: null,
+          callCount: null,
         });
+      }
+
+      // Enrich with call volume percentages from spans (best-effort)
+      try {
+        // Outbound calls from this host
+        const outCalls = await executeDql(
+          `fetch spans
+| filter dt.smartscape.host == "${safeId}" and span.kind == "CLIENT"
+| summarize calls = count(), by: {target = toString(dt.smartscape.service)}
+| sort calls desc`
+        );
+        // Inbound calls to this host
+        const inCalls = await executeDql(
+          `fetch spans
+| filter dt.smartscape.host == "${safeId}" and span.kind == "SERVER"
+| summarize calls = count(), by: {source = toString(dt.smartscape.service)}
+| sort calls desc`
+        );
+
+        if (generation !== generationRef.current) return;
+
+        // Compute totals per direction for percentage calculation
+        const outTotal = outCalls.reduce((sum, r) => sum + (Number(r.calls) || 0), 0);
+        const inTotal = inCalls.reduce((sum, r) => sum + (Number(r.calls) || 0), 0);
+
+        // Match call volumes to neighbors
+        for (const r of outCalls) {
+          const targetId = r.target as string;
+          const count = Number(r.calls) || 0;
+          const neighbor = result.find((n) => n.id === targetId && n.direction === "downstream");
+          if (neighbor && outTotal > 0) {
+            neighbor.callCount = count;
+            neighbor.callPct = Math.round((count / outTotal) * 100);
+          }
+        }
+        for (const r of inCalls) {
+          const sourceId = r.source as string;
+          const count = Number(r.calls) || 0;
+          const neighbor = result.find((n) => n.id === sourceId && n.direction === "upstream");
+          if (neighbor && inTotal > 0) {
+            neighbor.callCount = count;
+            neighbor.callPct = Math.round((count / inTotal) * 100);
+          }
+        }
+      } catch {
+        // Call volume enrichment is best-effort; continue without it
       }
 
       setNeighbors(result);

@@ -21,6 +21,7 @@ import {
   DocumentIcon,
 } from "@dynatrace/strato-icons";
 import { useDql } from "@dynatrace-sdk/react-hooks";
+import { queryExecutionClient } from "@dynatrace-sdk/client-query";
 import { useCostModel } from "../hooks/useCostModel";
 import { useForecast, METRICS } from "../hooks/useForecast";
 import { useGlobalFilters } from "../context/FilterContext";
@@ -30,9 +31,37 @@ import {
   saveCapacityPlan,
   deleteCapacityPlan,
 } from "../lib/documents";
+import { classifySeverity, getRecommendationText } from "../lib/capacity";
 import { formatDateTime, formatNumber, formatPercent } from "../utils/formatting";
 import { CssTokens } from "../utils/design-tokens";
 import type { CapacityPlan, PlanHostForecast, BottleneckSeverity } from "../types";
+
+// ---- DQL execution helper (same pattern as useFleetHealth) ----
+async function executeDql(query: string): Promise<Record<string, unknown>[]> {
+  const response = await queryExecutionClient.queryExecute({
+    body: { query, requestTimeoutMilliseconds: 30000, maxResultRecords: 5000 },
+  });
+  if (response.state === "SUCCEEDED") {
+    return (response.result?.records as Record<string, unknown>[]) ?? [];
+  }
+  if (response.requestToken) {
+    let attempts = 0;
+    while (attempts < 30) {
+      await new Promise((r) => setTimeout(r, 1000));
+      const pollResponse = await queryExecutionClient.queryPoll({
+        requestToken: response.requestToken,
+      });
+      if (pollResponse.state === "SUCCEEDED") {
+        return (pollResponse.result?.records as Record<string, unknown>[]) ?? [];
+      }
+      if (pollResponse.state === "FAILED" || pollResponse.state === "CANCELLED") {
+        throw new Error(`Query ${pollResponse.state}`);
+      }
+      attempts++;
+    }
+  }
+  return [];
+}
 
 // ============================================================
 // Helper: severity icon
@@ -126,27 +155,59 @@ export const CapacityPlans: React.FC = () => {
     try {
       const hosts = hostQuery.data.records as Array<{ id: string; "entity.name": string }>;
 
-      // Build host forecasts from current host data
+      // Fetch real CPU/memory/disk metrics for all hosts (last 24h average = "current")
+      const metricRecords = await executeDql(
+        `timeseries {
+  cpu = avg(dt.host.cpu.usage),
+  mem = avg(dt.host.memory.usage),
+  disk = avg(dt.host.disk.used.percent)
+}, by: {dt.smartscape.host}
+| fieldsAdd cpu_val = arrayAvg(cpu), mem_val = arrayAvg(mem), disk_val = arrayAvg(disk)
+| fields dt.smartscape.host, cpu_val, mem_val, disk_val`
+      );
+
+      // Build metrics lookup
+      const metricsMap = new Map<string, { cpu: number; mem: number; disk: number }>();
+      for (const r of metricRecords) {
+        const hostId = r["dt.smartscape.host"] as string;
+        if (!hostId) continue;
+        metricsMap.set(hostId, {
+          cpu: typeof r.cpu_val === "number" ? r.cpu_val : 0,
+          mem: typeof r.mem_val === "number" ? r.mem_val : 0,
+          disk: typeof r.disk_val === "number" ? r.disk_val : 0,
+        });
+      }
+
+      // Build host forecasts with real data
       const hostForecasts: PlanHostForecast[] = hosts.map((host) => {
         const hostId = String(host.id ?? "");
         const hostName = String(host["entity.name"] ?? "Unknown");
         const costEntry = costModel?.hosts[hostId];
         const monthlyCost = costEntry?.monthlyCostUsd ?? null;
 
-        // These values will be populated with real forecast data
-        // For now, the plan structure captures the host inventory with cost
+        const m = metricsMap.get(hostId);
+        const cpu = m?.cpu ?? 0;
+        const mem = m?.mem ?? 0;
+        const disk = m?.disk ?? 0;
+
+        // Use peak metric for severity assessment
+        const peakMetric = Math.max(cpu, mem, disk);
+        const severity = classifySeverity(peakMetric);
+        const headroomPct = Math.max(0, 100 - peakMetric);
+        const recommendation = getRecommendationText(severity, "HOST", peakMetric, true);
+
         return {
           hostId,
           hostName,
-          severity: "healthy" as BottleneckSeverity,
-          currentCpu: 0,
-          currentMemory: 0,
-          currentDisk: 0,
-          forecastCpu: 0,
-          forecastMemory: 0,
-          forecastDisk: 0,
-          headroomPct: 100,
-          recommendation: "No issues detected",
+          severity,
+          currentCpu: Math.round(cpu * 10) / 10,
+          currentMemory: Math.round(mem * 10) / 10,
+          currentDisk: Math.round(disk * 10) / 10,
+          forecastCpu: Math.round(cpu * 10) / 10,
+          forecastMemory: Math.round(mem * 10) / 10,
+          forecastDisk: Math.round(disk * 10) / 10,
+          headroomPct: Math.round(headroomPct * 10) / 10,
+          recommendation,
           monthlyCostUsd: monthlyCost,
           scalingCostImpact: null,
         };

@@ -16,13 +16,11 @@ import {
   SuccessIcon,
   CheckmarkIcon,
   HostsIcon,
-  ServicesIcon,
-  ContainerIcon,
-  ApplicationsIcon,
 } from "@dynatrace/strato-icons";
 import { ForecastChart } from "./ForecastChart";
+import { NeighborGraph } from "./NeighborGraph";
 import { useForecast, METRICS } from "../hooks/useForecast";
-import { useHostNeighbors, type NeighborNode } from "../hooks/useHostNeighbors";
+import { useHostNeighbors } from "../hooks/useHostNeighbors";
 import type { HostHealthRow } from "../hooks/useFleetHealth";
 import type { ForecastResult } from "../hooks/useForecast";
 import { CssTokens } from "../utils/design-tokens";
@@ -168,73 +166,6 @@ const AnalysisCard: React.FC<AnalysisCardProps> = ({ label, forecast, spikeMulti
   );
 };
 
-// ---- Neighbor icon ----
-function getNeighborIcon(type: string) {
-  if (type === "HOST") return <HostsIcon />;
-  if (type === "SERVICE") return <ServicesIcon />;
-  if (type === "PROCESS" || type === "CONTAINER") return <ContainerIcon />;
-  if (type === "FRONTEND") return <ApplicationsIcon />;
-  return <ServicesIcon />;
-}
-
-const directionColors: Record<string, string> = {
-  upstream: CssTokens.feedbackInfo,
-  downstream: CssTokens.feedbackWarning,
-  runs_on: CssTokens.feedbackSuccess,
-};
-
-// ---- Neighbor list ----
-const NeighborList: React.FC<{ neighbors: NeighborNode[]; status: string; error: string | null }> = ({ neighbors, status, error }) => {
-  if (status === "loading") {
-    return (
-      <Flex alignItems="center" gap={8} padding={12}>
-        <ProgressCircle size="small" />
-        <Text>Loading topology…</Text>
-      </Flex>
-    );
-  }
-  if (status === "error") return <Text style={{ color: CssTokens.feedbackCritical, padding: 12 }}>{error}</Text>;
-  if (neighbors.length === 0) return <Text style={{ color: CssTokens.textSecondary, padding: 12 }}>No connected entities found.</Text>;
-
-  const grouped = {
-    upstream: neighbors.filter((n) => n.direction === "upstream"),
-    runs_on: neighbors.filter((n) => n.direction === "runs_on"),
-    downstream: neighbors.filter((n) => n.direction === "downstream"),
-  };
-
-  return (
-    <Flex flexDirection="column" gap={8}>
-      {(["upstream", "runs_on", "downstream"] as const).map((dir) => {
-        const items = grouped[dir];
-        if (items.length === 0) return null;
-        const dirLabel = dir === "upstream" ? "Upstream (calls this host)" : dir === "runs_on" ? "Runs on this host" : "Downstream (called by this host)";
-        return (
-          <Flex key={dir} flexDirection="column" gap={4}>
-            <Text textStyle="small-emphasized" style={{ color: directionColors[dir], textTransform: "uppercase", letterSpacing: 0.5 }}>
-              {dirLabel} ({items.length})
-            </Text>
-            <Flex gap={6} flexWrap="wrap">
-              {items.map((n) => (
-                <Flex key={n.id} alignItems="center" gap={4} style={{
-                  padding: "3px 8px",
-                  borderRadius: 4,
-                  background: "var(--dt-colors-background-surface-default, #1e1e2e)",
-                  border: `1px solid ${directionColors[dir]}`,
-                  opacity: 0.85,
-                }}>
-                  <span style={{ color: directionColors[dir] }}>{getNeighborIcon(n.type)}</span>
-                  <Text textStyle="small">{n.name}</Text>
-                  <Text textStyle="small" style={{ color: CssTokens.textSecondary }}>{n.type}</Text>
-                </Flex>
-              ))}
-            </Flex>
-          </Flex>
-        );
-      })}
-    </Flex>
-  );
-};
-
 // ---- Spike selector ----
 const SPIKE_OPTIONS = [
   { value: 1, label: "Normal" },
@@ -349,7 +280,7 @@ export const HostDetailSheet: React.FC<HostDetailSheetProps> = ({
             <ForecastChart forecast={diskForecast} metricLabel={METRICS.disk.label} />
           </Tab>
           <Tab title={`Topology (${neighbors.length})`}>
-            <NeighborList neighbors={neighbors} status={neighborsStatus} error={neighborsError} />
+            <NeighborGraph neighbors={neighbors} status={neighborsStatus} error={neighborsError} hostId={host.id} hostName={host.name} />
           </Tab>
         </Tabs>
       </Flex>

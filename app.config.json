@@ -18,6 +18,7 @@
       { "name": "storage:filter-segments:write", "comment": "FilterBar segment persistence" },
       { "name": "document:documents:read", "comment": "Read saved scenarios from Document Store" },
       { "name": "document:documents:write", "comment": "Save scenarios to Document Store" },
+      { "name": "document:documents:delete", "comment": "Delete capacity plans and simulations from Document Store" },
       { "name": "state:app-states:read", "comment": "Read cost model and alert configuration" },
       { "name": "state:app-states:write", "comment": "Write cost model and alert configuration" },
       { "name": "state:user-app-states:read", "comment": "Read user preferences" },
