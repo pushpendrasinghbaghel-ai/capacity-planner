@@ -1,5 +1,5 @@
 // ============================================================
-// CapacityReport — Multi-horizon Davis AI capacity forecast report
+// CapacityReport — Multi-horizon Dynatrace Intelligence capacity forecast report
 // Select node from topology → generate 3/6/9/12 month projections
 // ============================================================
 
@@ -148,7 +148,7 @@ export const CapacityReport: React.FC<CapacityReportProps> = ({ report, status, 
         <Heading level={3}>Select a node from the topology</Heading>
         <Text style={{ color: CssTokens.textSecondary, textAlign: "center", maxWidth: 500 }}>
           Click on any HOST node in the topology graph above, then click "Generate Capacity Report"
-          to produce a Davis AI-powered forecast for the next 3, 6, 9, and 12 months.
+          to produce a Dynatrace Intelligence-powered forecast for the next 3, 6, 9, and 12 months.
         </Text>
       </Flex>
     );
@@ -158,7 +158,7 @@ export const CapacityReport: React.FC<CapacityReportProps> = ({ report, status, 
     return (
       <Flex alignItems="center" justifyContent="center" padding={64} gap={12}>
         <ProgressCircle />
-        <Text>Davis AI is generating capacity forecasts for 4 horizons…</Text>
+        <Text>Dynatrace Intelligence is generating capacity forecasts for 4 horizons…</Text>
       </Flex>
     );
   }
@@ -183,7 +183,7 @@ export const CapacityReport: React.FC<CapacityReportProps> = ({ report, status, 
         <Flex flexDirection="column" gap={4}>
           <Heading level={2}>Capacity Report — {report.nodeName}</Heading>
           <Text style={{ color: CssTokens.textSecondary }}>
-            {report.nodeType} • Generated {formatDateTime(report.generatedAt)} • Davis AI Forecast
+            {report.nodeType} • Generated {formatDateTime(report.generatedAt)} • Dynatrace Intelligence Forecast
           </Text>
         </Flex>
         <Button variant="default" onClick={onBack}>Back to Topology</Button>

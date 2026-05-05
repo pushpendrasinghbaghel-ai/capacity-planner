@@ -22,6 +22,7 @@ import {
 } from "@dynatrace/strato-icons";
 import { useDql } from "@dynatrace-sdk/react-hooks";
 import { queryExecutionClient } from "@dynatrace-sdk/client-query";
+import { analyzersClient } from "@dynatrace-sdk/client-davis-analyzers";
 import { useCostModel } from "../hooks/useCostModel";
 import { useForecast, METRICS } from "../hooks/useForecast";
 import { useGlobalFilters } from "../context/FilterContext";
@@ -30,11 +31,12 @@ import {
   loadCapacityPlan,
   saveCapacityPlan,
   deleteCapacityPlan,
+  saveForecastSnapshot,
 } from "../lib/documents";
 import { classifySeverity, getRecommendationText } from "../lib/capacity";
-import { formatDateTime, formatNumber, formatPercent } from "../utils/formatting";
+import { formatDateTime, formatNumber, formatPercent, sanitizeEntityId } from "../utils/formatting";
 import { CssTokens } from "../utils/design-tokens";
-import type { CapacityPlan, PlanHostForecast, BottleneckSeverity } from "../types";
+import type { CapacityPlan, PlanHostForecast, ForecastSnapshot, BottleneckSeverity } from "../types";
 
 // ---- DQL execution helper (same pattern as useFleetHealth) ----
 async function executeDql(query: string): Promise<Record<string, unknown>[]> {
@@ -61,6 +63,81 @@ async function executeDql(query: string): Promise<Record<string, unknown>[]> {
     }
   }
   return [];
+}
+
+// ---- Davis forecast helper ----
+const PLAN_FORECAST_METRICS = [
+  { key: "dt.host.cpu.usage", agg: "avg", label: "CPU Usage %" },
+  { key: "dt.host.memory.usage", agg: "avg", label: "Memory Usage %" },
+  { key: "dt.host.disk.used.percent", agg: "avg", label: "Disk Usage %" },
+] as const;
+
+interface ForecastResult {
+  current: number;
+  point: number;
+  upper: number;
+  lower: number;
+}
+
+async function forecastMetricForHost(
+  hostId: string,
+  metricKey: string,
+  aggregation: string,
+  forecastDays: number,
+): Promise<ForecastResult | null> {
+  try {
+    const response = await analyzersClient.executeAnalyzer({
+      analyzerName: "dt.statistics.GenericForecastAnalyzer",
+      body: {
+        timeSeriesData: {
+          expression: `timeseries ${aggregation}(${metricKey}), filter:{dt.smartscape.host == "${sanitizeEntityId(hostId)}"}`,
+        },
+        forecastHorizon: Math.min(forecastDays, 400),
+        forecastOffset: 1,
+        generalParameters: {
+          timeframe: { startTime: "now-30d" },
+        },
+      },
+    });
+
+    const analyzerResult = response.result;
+    if (!analyzerResult || analyzerResult.resultStatus === "FAILED") return null;
+
+    const output = analyzerResult.output?.[0];
+    if (!output) return null;
+
+    const record = (output as any).timeSeriesDataWithPredictions?.records?.[0];
+    if (!record) return null;
+
+    const historicalRecord = (output as any).analyzedTimeSeriesQuery?.expression?.records?.[0];
+    const metricField = historicalRecord
+      ? Object.keys(historicalRecord).find(
+          (k) =>
+            !k.startsWith("dt.davis.forecast") &&
+            !["timeframe", "interval", "dt.entity.host", "dt.smartscape.host"].includes(k),
+        )
+      : undefined;
+
+    const historical = metricField ? (historicalRecord[metricField] as number[]) : [];
+    const forecastPoints = (record["dt.davis.forecast:point"] as number[]) ?? [];
+    const forecastUppers = (record["dt.davis.forecast:upper"] as number[]) ?? [];
+    const forecastLowers = (record["dt.davis.forecast:lower"] as number[]) ?? [];
+
+    const current =
+      historical.length > 0 ? historical.filter((v) => v != null).pop() ?? 0 : 0;
+
+    const lastIdx = forecastPoints.length - 1;
+    if (lastIdx < 0) return null;
+
+    return {
+      current,
+      point: forecastPoints[lastIdx] ?? 0,
+      upper: forecastUppers[lastIdx] ?? forecastPoints[lastIdx] ?? 0,
+      lower: forecastLowers[lastIdx] ?? forecastPoints[lastIdx] ?? 0,
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================
@@ -152,66 +229,84 @@ export const CapacityPlans: React.FC = () => {
     setIsGenerating(true);
     setError(null);
 
+    const HORIZON_DAYS = 30;
+
     try {
       const hosts = hostQuery.data.records as Array<{ id: string; "entity.name": string }>;
 
-      // Fetch real CPU/memory/disk metrics for all hosts (last 24h average = "current")
-      const metricRecords = await executeDql(
-        `timeseries {
-  cpu = avg(dt.host.cpu.usage),
-  mem = avg(dt.host.memory.usage),
-  disk = avg(dt.host.disk.used.percent)
-}, by: {dt.smartscape.host}
-| fieldsAdd cpu_val = arrayAvg(cpu), mem_val = arrayAvg(mem), disk_val = arrayAvg(disk)
-| fields dt.smartscape.host, cpu_val, mem_val, disk_val`
-      );
+      // Run Davis forecasts for each host + metric in parallel
+      const hostForecasts: PlanHostForecast[] = [];
+      const snapshotsToSave: ForecastSnapshot[] = [];
+      const now = new Date().toISOString();
+      const targetDate = new Date(Date.now() + HORIZON_DAYS * 86400000).toISOString();
 
-      // Build metrics lookup
-      const metricsMap = new Map<string, { cpu: number; mem: number; disk: number }>();
-      for (const r of metricRecords) {
-        const hostId = r["dt.smartscape.host"] as string;
-        if (!hostId) continue;
-        metricsMap.set(hostId, {
-          cpu: typeof r.cpu_val === "number" ? r.cpu_val : 0,
-          mem: typeof r.mem_val === "number" ? r.mem_val : 0,
-          disk: typeof r.disk_val === "number" ? r.disk_val : 0,
-        });
-      }
-
-      // Build host forecasts with real data
-      const hostForecasts: PlanHostForecast[] = hosts.map((host) => {
+      for (const host of hosts) {
         const hostId = String(host.id ?? "");
         const hostName = String(host["entity.name"] ?? "Unknown");
         const costEntry = costModel?.hosts[hostId];
         const monthlyCost = costEntry?.monthlyCostUsd ?? null;
 
-        const m = metricsMap.get(hostId);
-        const cpu = m?.cpu ?? 0;
-        const mem = m?.mem ?? 0;
-        const disk = m?.disk ?? 0;
+        // Forecast all three metrics in parallel for this host
+        const [cpuResult, memResult, diskResult] = await Promise.all(
+          PLAN_FORECAST_METRICS.map((m) =>
+            forecastMetricForHost(hostId, m.key, m.agg, HORIZON_DAYS),
+          ),
+        );
 
-        // Use peak metric for severity assessment
-        const peakMetric = Math.max(cpu, mem, disk);
-        const severity = classifySeverity(peakMetric);
-        const headroomPct = Math.max(0, 100 - peakMetric);
-        const recommendation = getRecommendationText(severity, "HOST", peakMetric, true);
+        const currentCpu = cpuResult?.current ?? 0;
+        const currentMem = memResult?.current ?? 0;
+        const currentDisk = diskResult?.current ?? 0;
+        const forecastCpu = cpuResult ? Math.min(cpuResult.point, 100) : currentCpu;
+        const forecastMem = memResult ? Math.min(memResult.point, 100) : currentMem;
+        const forecastDisk = diskResult ? Math.min(diskResult.point, 100) : currentDisk;
 
-        return {
+        const peakForecast = Math.max(forecastCpu, forecastMem, forecastDisk);
+        const severity = classifySeverity(peakForecast);
+        const headroomPct = Math.max(0, 100 - peakForecast);
+        const recommendation = getRecommendationText(severity, "HOST", peakForecast, true);
+
+        hostForecasts.push({
           hostId,
           hostName,
           severity,
-          currentCpu: Math.round(cpu * 10) / 10,
-          currentMemory: Math.round(mem * 10) / 10,
-          currentDisk: Math.round(disk * 10) / 10,
-          forecastCpu: Math.round(cpu * 10) / 10,
-          forecastMemory: Math.round(mem * 10) / 10,
-          forecastDisk: Math.round(disk * 10) / 10,
+          currentCpu: Math.round(currentCpu * 10) / 10,
+          currentMemory: Math.round(currentMem * 10) / 10,
+          currentDisk: Math.round(currentDisk * 10) / 10,
+          forecastCpu: Math.round(forecastCpu * 10) / 10,
+          forecastMemory: Math.round(forecastMem * 10) / 10,
+          forecastDisk: Math.round(forecastDisk * 10) / 10,
           headroomPct: Math.round(headroomPct * 10) / 10,
           recommendation,
           monthlyCostUsd: monthlyCost,
           scalingCostImpact: null,
-        };
-      });
+        });
+
+        // Create forecast snapshots for each metric that produced a result
+        const metricResults = [
+          { def: PLAN_FORECAST_METRICS[0], result: cpuResult },
+          { def: PLAN_FORECAST_METRICS[1], result: memResult },
+          { def: PLAN_FORECAST_METRICS[2], result: diskResult },
+        ];
+        for (const { def, result } of metricResults) {
+          if (!result) continue;
+          snapshotsToSave.push({
+            id: crypto.randomUUID(),
+            hostId,
+            hostName,
+            metric: def.key,
+            metricLabel: def.label,
+            createdAt: now,
+            forecastHorizonDays: HORIZON_DAYS,
+            targetDate,
+            predictedValue: Math.round(Math.min(result.point, 100) * 10) / 10,
+            predictedUpper: Math.round(Math.min(result.upper, 100) * 10) / 10,
+            predictedLower: Math.round(Math.max(result.lower, 0) * 10) / 10,
+            actualValue: null,
+            accuracyPct: null,
+            withinBand: null,
+          });
+        }
+      }
 
       const criticalCount = hostForecasts.filter((h) => h.severity === "critical").length;
       const warningCount = hostForecasts.filter((h) => h.severity === "warning").length;
@@ -224,7 +319,7 @@ export const CapacityPlans: React.FC = () => {
         name: `Capacity Plan — ${new Date().toLocaleDateString()}`,
         createdAt: new Date().toISOString(),
         createdBy: "Capacity Planner App",
-        horizonDays: 30,
+        horizonDays: HORIZON_DAYS,
         summary: {
           totalHosts: hostForecasts.length,
           criticalCount,
@@ -251,6 +346,12 @@ export const CapacityPlans: React.FC = () => {
       };
 
       await saveCapacityPlan(plan);
+
+      // Save forecast snapshots for accuracy tracking
+      for (const snapshot of snapshotsToSave) {
+        await saveForecastSnapshot(snapshot);
+      }
+
       await loadPlans();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate plan");

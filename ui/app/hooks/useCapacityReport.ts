@@ -205,7 +205,7 @@ export function useCapacityReport(): UseCapacityReportResult {
             horizonDays: horizon.days,
             metrics: validMetrics,
             overallSeverity,
-            recommendation: `[Davis AI — ${horizon.label}] ${recommendation}`,
+            recommendation: `[Dynatrace Intelligence — ${horizon.label}] ${recommendation}`,
           });
         }
 

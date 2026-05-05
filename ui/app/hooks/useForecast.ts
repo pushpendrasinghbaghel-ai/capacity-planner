@@ -29,7 +29,7 @@ export const METRICS: Record<string, MetricConfig> = {
   disk: { key: "dt.host.disk.used.percent", aggregation: "avg", label: "Disk Usage %" },
 };
 
-export function useForecast(hostId: string | null, metricId: string, timeframe?: Timeframe | null, forecastHorizon: number = 48, queryInterval?: string) {
+export function useForecast(hostId: string | null, metricId: string, timeframe?: Timeframe | null, forecastHorizon: number = 48, queryInterval?: string, spikeMultiplier: number = 1) {
   const [result, setResult] = useState<ForecastResult>({
     historical: [],
     forecastPoint: [],
@@ -69,11 +69,17 @@ export function useForecast(hostId: string | null, metricId: string, timeframe?:
         }
       }
 
+      // Build DQL expression — when spike multiplier > 1, scale the timeseries
+      // so Davis computes proper statistical confidence intervals on the spiked data
+      const baseExpr = spikeMultiplier > 1
+        ? `timeseries val = ${metric.aggregation}(${metric.key}), filter:{dt.smartscape.host == "${sanitizeEntityId(hostId)}"}${queryInterval ? `, interval: ${queryInterval}` : ""} | fieldsAdd val = val[] * ${spikeMultiplier}`
+        : `timeseries ${metric.aggregation}(${metric.key}), filter:{dt.smartscape.host == "${sanitizeEntityId(hostId)}"}${queryInterval ? `, interval: ${queryInterval}` : ""}`;
+
       const response = await analyzersClient.executeAnalyzer({
         analyzerName: "dt.statistics.GenericForecastAnalyzer",
         body: {
           timeSeriesData: {
-            expression: `timeseries ${metric.aggregation}(${metric.key}), filter:{dt.smartscape.host == "${sanitizeEntityId(hostId)}"}${queryInterval ? `, interval: ${queryInterval}` : ""}`,
+            expression: baseExpr,
           },
           forecastHorizon: Math.min(forecastHorizon, 400),
           forecastOffset: 1,
@@ -157,7 +163,7 @@ export function useForecast(hostId: string | null, metricId: string, timeframe?:
         error: err instanceof Error ? err.message : "Forecast request failed",
       }));
     }
-  }, [hostId, metricId, timeframe, forecastHorizon, queryInterval]);
+  }, [hostId, metricId, timeframe, forecastHorizon, queryInterval, spikeMultiplier]);
 
   useEffect(() => {
     void runForecast();

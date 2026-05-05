@@ -93,7 +93,7 @@ export const ForecastChart = ({ forecast, metricLabel }: ForecastChartProps) => 
     return (
       <Flex alignItems="center" gap={8} padding={32}>
         <ProgressCircle />
-        <Paragraph>Running Davis forecast…</Paragraph>
+        <Paragraph>Running Dynatrace Intelligence forecast…</Paragraph>
       </Flex>
     );
   }

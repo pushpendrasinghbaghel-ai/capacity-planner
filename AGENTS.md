@@ -20,6 +20,10 @@ This is a **capacity planning tool** — it produces **persistent artifacts** (c
 - **Strato Design System** for ALL UI — no custom HTML elements, no hardcoded colors
 - **Real DQL queries** against Grail — no mock data generators
 
+### Branding / Naming
+- **User-facing label**: Always use **"Dynatrace Intelligence"** (never "Davis" or "Davis AI") in all UI text, tooltips, labels, messages, and recommendations.
+- **Code internals**: SDK imports (`@dynatrace-sdk/client-davis-analyzers`), API field names (`dt.davis.forecast:*`), and internal variable names (`davisTimeframe`) stay as-is — they are API contracts.
+
 ### Navigation Structure
 | Route | Page | Purpose |
 |-------|------|---------|

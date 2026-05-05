@@ -138,7 +138,7 @@ export const TopologyExplorer = () => {
           )}
         </TitleBar.Title>
         <TitleBar.Subtitle>
-          Visual Smartscape topology with Davis AI capacity forecasting
+          Visual Smartscape topology with Dynatrace Intelligence capacity forecasting
         </TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Flex alignItems="center" gap={8}>

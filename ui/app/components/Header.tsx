@@ -38,7 +38,7 @@ export const Header = () => {
             },
             documentation: [
               {
-                label: "Davis Forecast Analyzers",
+                label: "Dynatrace Intelligence Analyzers",
                 href: "https://docs.dynatrace.com/docs/platform-modules/davis-ai/davis-analyzers",
                 onSelect: () => undefined,
               },
